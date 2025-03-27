@@ -1,3 +1,5 @@
+bool mydebug = false;
+
 class Medication {
   final int compartment;
   final int count;
@@ -5,13 +7,13 @@ class Medication {
   final DateTime timestamp;
   final DateTime date;
   final bool taken;
-  static const Map<String,String> medication_name={
-    "Madopar":"美道普錠",
-    "Norvasc":"脈優",
-    "Diovan":"得安穩",
-    "Isobide":"易適倍錠",
-    "Diphenidol":"敵芬尼朵",
-    "Tulip":"妥寧"
+  static const Map<String, String> medication_name = {
+    "Madopar": "美道普錠",
+    "Norvasc": "脈優",
+    "Diovan": "得安穩",
+    "Isobide": "易適倍錠",
+    "Diphenidol": "敵芬尼朵",
+    "Tulip": "妥寧"
   };
 
   Medication({
@@ -23,31 +25,33 @@ class Medication {
     required this.taken,
   });
   // 獲取藥物中文名
-  String getLocalizedMedicationName(String name){
+  String getLocalizedMedicationName(String name) {
     return medication_name[name] ?? name;
   }
+
   // 獲取所有藥物的本地名稱列表
-  List<String> getLocalizedMedicationNames(){
-    return medications.map((med)=>getLocalizedMedicationName(med)).toList();
+  List<String> getLocalizedMedicationNames() {
+    return medications.map((med) => getLocalizedMedicationName(med)).toList();
   }
 
   static DateTime? parseGoogleSheetsDate(String value) {
-  try {
-    final numValue = double.tryParse(value);
-    if (numValue != null) {
-      // Google Sheets 的日期基準點是 1899-12-30
-      final epoch = DateTime.utc(1899, 12, 30);
-      return epoch.add(Duration(milliseconds: (numValue * 86400000).toInt()));
+    try {
+      final numValue = double.tryParse(value);
+      if (numValue != null) {
+        // Google Sheets 的日期基準點是 1899-12-30
+        final epoch = DateTime.utc(1899, 12, 30);
+        return epoch.add(Duration(milliseconds: (numValue * 86400000).toInt()));
+      }
+    } catch (e) {
+      print('[parseGoogleSheetsDate] Error: $e, value: $value');
     }
-  } catch (e) {
-    print('[parseGoogleSheetsDate] Error: $e, value: $value');
-  }
     return null;
   }
+
   factory Medication.fromSheetRow(List<dynamic> row) {
     // Expected columns: compartment, count, medication, medication1, medication2...
     // timestamp, date, taken
-    
+
     List<String> meds = [];
     // Start from the 'medication' column (index 2) and go through all medication columns
     for (int i = 2; i < 9; i++) {
@@ -69,7 +73,7 @@ class Medication {
       // date: DateTime.parse(row[11].toString()),
       timestamp: parseGoogleSheetsDate(row[10].toString())!,
       date: parseGoogleSheetsDate(row[11].toString())!,
-      taken: row[12].toString().toLowerCase() == 'yes'?true:false,
+      taken: row[12].toString().toLowerCase() == 'yes' ? true : false,
     );
   }
 

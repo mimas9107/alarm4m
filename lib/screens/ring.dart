@@ -17,12 +17,12 @@ class ExampleAlarmRingScreen extends StatefulWidget {
 class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
   static final _log = Logger('ExampleAlarmRingScreenState');
   StreamSubscription<AlarmSet>? _ringingSubscription;
-  
+
   List<Medication> _pendingMedications = [];
   bool _isLoading = true;
   bool _isUpdating = false;
   late GoogleSheetsService _sheetsService;
-  
+
   @override
   void initState() {
     super.initState();
@@ -32,31 +32,31 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
       _ringingSubscription?.cancel();
       if (mounted) Navigator.pop(context);
     });
-    
+
     _initializeGoogleSheets();
   }
-  
+
   Future<void> _initializeGoogleSheets() async {
     _sheetsService = GoogleSheetsService(
       spreadsheetId: spreadsheetId,
       sheetName: 'Sheet1',
     );
-    
+
     await _sheetsService.initialize();
     await _loadPendingMedications();
   }
-  
+
   Future<void> _loadPendingMedications() async {
     try {
       final medications = await _sheetsService.getMedicationData();
       final now = DateTime.now();
       final todayMeds = medications.where((med) {
         return med.date.year == now.year &&
-               med.date.month == now.month &&
-               med.date.day == now.day &&
-               !med.taken;
+            med.date.month == now.month &&
+            med.date.day == now.day &&
+            !med.taken;
       }).toList();
-      
+
       setState(() {
         _pendingMedications = todayMeds;
         _isLoading = false;
@@ -68,31 +68,27 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
       });
     }
   }
-  
-  Future<void> _markAsTaken(int compartmentNumber) async {
+
+  Future<void> _markAllMedicationsAsTaken() async {
     setState(() {
       _isUpdating = true;
     });
-    
+
     try {
-      // Google Sheets API 更新功能需要實作
-      // 這裡需要向您的 Google Sheets 發送更新請求
-      final success=await _sheetsService.updateMedicationStatus(compartmentNumber, true);
-      if(success){
-        // 成功後顯示確認訊息
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('已標記服用完成！')),
-          );
-        }
-        
-      _log.info('標記藥物 #$compartmentNumber 為已服用');
+      for (var medication in _pendingMedications) {
+        await _sheetsService.updateMedicationStatus(
+            medication.compartment, true);
       }
-           
-      // 關閉警報
-      await Alarm.stop(widget.alarmSettings.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已標記所有藥物為已服用！')),
+        );
+      }
+
+      _log.info('已標記所有藥物為已服用');
     } catch (e) {
-      _log.severe('Error updating medication status: $e');
+      _log.severe('更新藥物狀態時發生錯誤: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('更新失敗: $e')),
@@ -104,13 +100,13 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
       });
     }
   }
-  
+
   @override
   void dispose() {
     _ringingSubscription?.cancel();
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     String timeSlot = '';
@@ -131,7 +127,7 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
         timeSlot = '晚餐後';
       }
     }
-    
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -153,7 +149,6 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
                   ),
                 ],
               ),
-              
               _isLoading
                   ? CircularProgressIndicator()
                   : Expanded(
@@ -172,19 +167,21 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
                               },
                             ),
                     ),
-              
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: () async {
-                      await Alarm.set(
-                        alarmSettings: widget.alarmSettings.copyWith(
-                          dateTime: DateTime.now().add(const Duration(minutes: 5)),
-                        ),
-                      );
-                      Navigator.pop(context);
-                    },
+                    onPressed: _isUpdating
+                        ? null
+                        : () async {
+                            await Alarm.set(
+                              alarmSettings: widget.alarmSettings.copyWith(
+                                dateTime: DateTime.now()
+                                    .add(const Duration(minutes: 5)),
+                              ),
+                            );
+                            Navigator.pop(context);
+                          },
                     icon: const Icon(Icons.snooze),
                     label: const Text('5分鐘後再提醒'),
                     style: ElevatedButton.styleFrom(
@@ -196,11 +193,19 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
                     ),
                   ),
                   ElevatedButton.icon(
-                    onPressed: () async => Alarm.stop(widget.alarmSettings.id),
-                    icon: const Icon(Icons.cancel),
-                    label: const Text('關閉提醒'),
+                    onPressed: _isUpdating
+                        ? null
+                        : () async {
+                            await _markAllMedicationsAsTaken();
+                            await Alarm.stop(widget.alarmSettings.id);
+                            if (mounted) {
+                              Navigator.pop(context);
+                            }
+                          },
+                    icon: const Icon(Icons.check_circle),
+                    label: _isUpdating ? Text('更新中...') : Text('已服用並關閉'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
+                      backgroundColor: Colors.green,
                       padding: EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 12,
@@ -215,14 +220,14 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
       ),
     );
   }
-  
+
   Widget _buildMedicationCard(Medication medication) {
     // 獲取本地化藥物名稱
     List<String> formattedNames = medication.medications.map((med) {
       String localName = medication.getLocalizedMedicationName(med);
       return localName == med ? med : "$localName ($med)";
     }).toList();
-    
+
     return Card(
       elevation: 4,
       margin: EdgeInsets.symmetric(vertical: 8),
@@ -256,13 +261,10 @@ class _ExampleAlarmRingScreenState extends State<ExampleAlarmRingScreen> {
             SizedBox(height: 10),
             Center(
               child: ElevatedButton.icon(
-                onPressed: _isUpdating
-                    ? null
-                    : () => _markAsTaken(medication.compartment),
+                onPressed:
+                    _isUpdating ? null : () => _markAllMedicationsAsTaken(),
                 icon: Icon(Icons.check_circle),
-                label: _isUpdating
-                    ? Text('更新中...')
-                    : Text('標記已服用'),
+                label: _isUpdating ? Text('更新中...') : Text('已服用並關閉'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   minimumSize: Size(200, 44),

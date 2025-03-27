@@ -25,7 +25,6 @@ Future<void> main() async {
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   setupLogging(showDebugLogs: true);
-  
 
   await Alarm.init();
 
@@ -49,6 +48,7 @@ Future<void> main() async {
 
   runApp(
     MaterialApp(
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: false),
       home: const MedicationAlarmHomeScreen(),
     ),
